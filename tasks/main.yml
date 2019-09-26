@@ -1,0 +1,36 @@
+---
+- name: Create swapfile
+  command: dd if=/dev/zero of={{ swapfile_path }} bs=1M count={{ swapfile_size }}
+  args:
+    creates: "{{ swapfile_path }}"
+
+- name: Set permission
+  file:
+    path: "{{ swapfile_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Check file type
+  command: file {{ swapfile_path }}
+  changed_when: False
+  register: swapfile_type
+
+- name: Make swap
+  command: mkswap {{ swapfile_path }}
+  when:
+    - "'swap file' not in swapfile_type.stdout"
+
+- name: Creating the systemd unit file
+  template:
+    src: swapfile.swap.j2
+    dest: "/etc/systemd/system/{{ swapfile_path | regex_replace('^/','') | regex_replace('/','-') }}.swap"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Activate swap
+  systemd:
+    name: "{{ swapfile_path | regex_replace('^/','') | regex_replace('/','-') }}.swap"
+    state: started
+    enabled: yes
